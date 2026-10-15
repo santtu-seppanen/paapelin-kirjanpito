@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "paapelin-kirjanpito-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "vars": {
+    "ALLOWED_ORIGINS": "https://santtu-seppanen.github.io"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "paapelin-kirjanpito",
+      "database_id": "e1daefaa-1ab1-4fb8-956d-e8f19322ece0"
+    }
+  ]
+  // Salasana asetetaan salaisuutena: npx wrangler secret put APP_PASSWORD
+}
