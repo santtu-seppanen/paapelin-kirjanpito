@@ -28,15 +28,16 @@ kaikkien saldot ovat yhtä suuret.
 
 ## Kehitys ja julkaisu
 
-Frontend julkaistaan automaattisesti GitHub Actionsilla, kun `web/`-kansioon pushataan mainiin.
+Molemmat osat julkaistaan automaattisesti GitHub Actionsilla, kun mainiin pushataan:
 
-Worker julkaistaan käsin:
+| Workflow | Laukaisee | Julkaisee |
+|---|---|---|
+| `pages.yml` | muutokset `web/`-kansiossa | frontend GitHub Pagesiin |
+| `worker.yml` | muutokset `worker/`-kansiossa | skeema D1:een + Worker Cloudflareen |
 
-```sh
-cd worker
-npm install
-npx wrangler deploy
-```
+Worker-julkaisu tarvitsee repoon salaisuuden `CLOUDFLARE_API_TOKEN` (Cloudflaren
+"Edit Cloudflare Workers" -pohja + D1 Edit -oikeus) ja muuttujan `CLOUDFLARE_ACCOUNT_ID`.
+Käsin julkaisu: `cd worker && npx wrangler deploy`.
 
 Salasanan vaihto: `npx wrangler secret put APP_PASSWORD`
 
