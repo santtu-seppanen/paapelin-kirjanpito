@@ -75,12 +75,12 @@ boot("dash", (root, entries) => {
           <p class="small muted" style="margin:12px 0 0">Kiinteät kulut arvioidaan edellisen vuoden samojen kuukausien mukaan, hankinnat viimeisen 12 kuukauden keskiarvona.</p>
         </section>
 
-        <section class="panel span-5">
+        <section class="panel span-12">
           <div class="panel-head"><h2>Tehdyt hankinnat</h2><span class="small muted" id="tl-sub"></span></div>
           <div class="timeline" id="timeline"></div>
         </section>
 
-        <section class="panel span-7" id="tapahtumat">
+        <section class="panel span-12" id="tapahtumat">
           <div class="panel-head">
             <h2>Tapahtumat</h2>
             <span class="small muted" id="tx-sub"></span>
@@ -216,7 +216,7 @@ boot("dash", (root, entries) => {
         ...baseOptions(),
         indexAxis: "y",
         scales: {
-          x: { ticks: { callback: (v) => fmt0(v) } },
+          x: { ticks: { callback: (v) => fmt0(v), maxRotation: 0, maxTicksLimit: 5 } },
           y: { grid: { display: false }, ticks: { color: cssVar("--ink-2") } },
         },
         plugins: {

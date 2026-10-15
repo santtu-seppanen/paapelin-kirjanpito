@@ -235,9 +235,10 @@ tbody tr:hover { background: var(--surface-2); }
 .balance-bar .fill { position: absolute; top: 4px; bottom: 4px; border-radius: 4px; }
 .settle { margin: 14px 0 0; padding: 12px 14px; background: var(--accent-soft); border-radius: 8px; font-size: 0.92rem; }
 
-.timeline { display: grid; gap: 18px; max-height: 560px; overflow: auto; padding-right: 4px; }
+.timeline { columns: 320px; column-gap: 32px; max-height: 640px; overflow: auto; padding-right: 4px; }
+.timeline .month { break-inside: avoid; margin-bottom: 18px; }
 .timeline .month { display: grid; gap: 6px; }
-.timeline .month h3 { position: sticky; top: 0; background: var(--surface); padding-block: 2px; }
+.timeline .month h3 { padding-block: 2px; }
 .tl-item { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline; font-size: 0.92rem; }
 .tl-item .dot { width: 10px; height: 10px; border-radius: 50%; transform: translateY(1px); }
 .tl-item .what { min-width: 0; overflow-wrap: anywhere; }
