@@ -166,16 +166,25 @@ const RECEIPT_REASONS = [
   "Vanha kirjaus ennen järjestelmää",
 ];
 
-// Tila: "file" = kuitti tai lasku liitetty, "reason" = selitetty miksi ei ole, "missing" = puuttuu.
+// "Uusi aika": tätä vanhemmat kirjaukset on tasattu, eikä niihin tuoda tositteita.
+// Pienhankintabudjetit lasketaan myös vasta tästä päivästä. Arvo tulee asetuksista.
+const ERA_START_DEFAULT = "2026-10-15";
+let ERA_START = ERA_START_DEFAULT;
+function setEraStart(settings) { ERA_START = (settings && settings.eraStart) || ERA_START_DEFAULT; }
+
+// Tila: "file" = kuitti tai lasku liitetty, "reason" = selitetty miksi ei ole,
+// "legacy" = vanha tasattu kirjaus, "missing" = puuttuu.
 function receiptState(e) {
   if (e.receipt_files > 0) return "file";
   if (e.receipt_reason) return "reason";
+  if (e.date < ERA_START) return "legacy";
   return "missing";
 }
 const RECEIPT_BADGE = {
   file: '<span class="rcpt ok" title="Tosite liitetty">📎</span>',
   reason: '<span class="rcpt why" title="Selitetty miksi tositetta ei ole">✎</span>',
   missing: '<span class="rcpt miss" title="Tosite puuttuu">!</span>',
+  legacy: "",
 };
 
 // Ponnahdusikkuna: liitä kuitti/lasku tai kirjoita selite. onChange(entry) saa päivitetyn rivin.
@@ -417,6 +426,21 @@ function fyStart(fy) { return `${fy}-11-01`; }
 function fyEnd(fy) { return `${fy + 1}-10-31`; }
 function fyMonths(fy) { return monthRange(`${fy}-11`, `${fy + 1}-10`); }
 const currentFy = () => fyOf(todayIso());
+
+// ---------- Kuluvastaava ----------
+// Asetuksista voimassa oleva kuluvastaava; jos asetuksia ei ole, ehdotus talletusten perusteella.
+function currentResponsible(settings, entries, asOf = todayIso()) {
+  const list = (settings && settings.responsibles) || [];
+  if (!list.length) {
+    const since = addMonths(ymOf(asOf), -12);
+    const dep = OWNERS.map((o) => [o, entries.filter((e) => e.payer === o && e.kind === "deposit" && ymOf(e.date) >= since && !/tasaus/i.test(e.description)).reduce((s, e) => s + e.amount, 0)]);
+    dep.sort((a, b) => b[1] - a[1]);
+    return { who: dep[0][0], from: fyStart(fyOf(asOf)), until: null, suggested: true, next: null };
+  }
+  const started = list.filter((r) => r.from <= asOf);
+  const cur = started.length ? started[started.length - 1] : list[0];
+  return { ...cur, suggested: false, next: list.find((r) => r.from > asOf) || null };
+}
 
 // ---------- Roolit ----------
 // Jokainen osakas saa kulutuksensa perusteella yhden pääroolin (eri roolit kaikille) ja

@@ -41,6 +41,12 @@ python3 scripts/document_sql.py "Yhteisomistussopimus" sopimus.pdf > /tmp/doc.sq
 cd worker && npx wrangler d1 execute paapelin-kirjanpito --remote --file=/tmp/doc.sql
 ```
 
+### Uusi aika
+
+Excelistä tuodut vanhat kirjaukset on tasattu 14.10.2026, eikä niihin tuoda tositteita. Asetus
+`eraStart` (oletus 15.10.2026) rajaa tositeseurannan, pienhankintabudjetit ja vuokratulovarat
+alkamaan tästä päivästä. Vanhat rivit näkyvät tositteiden osalta tilassa "vanha, tasattu".
+
 ### Sopimusnäkymä
 
 Sopimuksen kuluvastaavat, kirjanpitäjä ja euromääräiset rajat tallennetaan `settings`-tauluun

@@ -25,6 +25,7 @@ boot("entry", (root, entries) => {
   root.innerHTML = `
     <div class="wrap narrow" style="display:grid;gap:24px">
       <div class="hello" id="hello"></div>
+      <section class="panel kv-card" id="kv-card" hidden></section>
       <form class="panel entry-form" id="entry-form" novalidate>
         <div class="panel-head" style="margin:0">
           <h1 id="form-title">Uusi kirjaus</h1>
@@ -142,6 +143,28 @@ boot("entry", (root, entries) => {
       (mine.length ? `<p class="nudge">🧾 ${mine.length} kirjaukseltasi puuttuu tosite. <a href="./tilanne.html?tositteet=puuttuu#tapahtumat">Näytä</a></p>` : "");
   }
 
+  async function renderResponsible() {
+    let settings = {};
+    try { settings = await getSettings(); } catch { /* näytetään ehdotus */ }
+    setEraStart(settings);
+    renderRecent();
+    renderHello();
+    const r = currentResponsible(settings, entries);
+    const fys = [];
+    for (let fy = fyOf(r.from); fy <= fyOf(r.until || r.from); fy++) fys.push(fyLabel(fy));
+    const period = r.until ? `${fmtDate(r.from)}–${fmtDate(r.until)}` : `${fmtDate(r.from)} alkaen`;
+    const card = $("#kv-card");
+    card.innerHTML = `
+      <span class="kv-emoji" aria-hidden="true">💡</span>
+      <span>
+        <span class="label">Kuluvastaava</span><br>
+        <b>${esc(r.who)}</b> <span class="small muted">${r.suggested ? "ehdotus – vahvistetaan vuositarkistuksessa" : `${period} · tilikaudet ${fys.join(" ja ")}`}</span><br>
+        <span class="small muted">Maksaa juoksevat kulut (sähkö, vesi, vakuutus) tililtä ja tallettaa tilille tarvittavan summan.${settings.bookkeeper ? ` Kirjanpitäjä: ${esc(settings.bookkeeper)}.` : ""}</span>
+        ${r.next ? `<br><span class="small">Seuraava: <b>${esc(r.next.who)}</b> ${fmtDate(r.next.from)} alkaen</span>` : ""}
+      </span>`;
+    card.hidden = false;
+  }
+
   async function renderDocs() {
     try {
       const docs = await getDocuments();
@@ -171,7 +194,7 @@ boot("entry", (root, entries) => {
         <span class="amt ${amt < 0 ? "neg" : ""}">${fmt(amt)}</span>
         <span class="meta">${fmtDate(e.date)} · ${esc(who)} · ${esc(e.category)}</span>
         <span class="acts">
-          <button type="button" class="linkbtn" data-rcpt="${e.id}">${receiptState(e) === "missing" ? "Lisää tosite" : "Tosite"}</button>
+          ${receiptState(e) === "legacy" ? "" : `<button type="button" class="linkbtn" data-rcpt="${e.id}">${receiptState(e) === "missing" ? "Lisää tosite" : "Tosite"}</button>`}
           <button type="button" class="linkbtn" data-edit="${e.id}">Muokkaa</button>
           <button type="button" class="linkbtn danger" data-del="${e.id}">Poista</button>
         </span>
@@ -329,6 +352,7 @@ boot("entry", (root, entries) => {
   render();
   renderRecent();
   renderHello();
+  renderResponsible();
   renderDocs();
 
   const editId = new URLSearchParams(location.search).get("edit");

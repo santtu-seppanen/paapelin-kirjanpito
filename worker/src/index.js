@@ -243,14 +243,15 @@ function validateSettings(body) {
   const num = (v, def) => (Number.isFinite(Number(v)) && v !== "" && v !== null ? Math.round(Number(v) * 100) / 100 : def);
   const owners = ["Santtu", "Vili", "Urpo"];
   const responsibles = (Array.isArray(body.responsibles) ? body.responsibles : [])
-    .map((r) => ({ from: String(r.from || ""), who: String(r.who || "") }))
-    .filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.from) && owners.includes(r.who))
+    .map((r) => ({ from: String(r.from || ""), until: /^\d{4}-\d{2}-\d{2}$/.test(r.until) ? r.until : null, who: String(r.who || "") }))
+    .filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.from) && owners.includes(r.who) && (!r.until || r.until >= r.from))
     .sort((a, b) => a.from.localeCompare(b.from))
     .slice(0, 50);
   const l = body.limits || {};
   return {
     responsibles,
     bookkeeper: owners.includes(body.bookkeeper) ? body.bookkeeper : null,
+    eraStart: /^\d{4}-\d{2}-\d{2}$/.test(body.eraStart) ? body.eraStart : null,
     limits: {
       settleLimit: num(l.settleLimit, 500),
       buffer: num(l.buffer, 100),

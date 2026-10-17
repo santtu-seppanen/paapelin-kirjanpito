@@ -20,6 +20,7 @@ boot("dash", async (root, entries) => {
   const charts = {};
   let settings = {};
   try { settings = await getSettings(); } catch { /* sopimusnäkymä käyttää oletuksia */ }
+  setEraStart(settings);
 
   const TABS = [
     { id: "yleiskuva", label: "Yleiskuva" },
@@ -198,6 +199,7 @@ boot("dash", async (root, entries) => {
               <option value="missing">Tosite puuttuu</option>
               <option value="file">Tosite liitetty</option>
               <option value="reason">Selitetty</option>
+              <option value="legacy">Vanha, tasattu</option>
             </select>
           </div>
           <div class="table-scroll" style="max-height:620px;overflow-y:auto"><table id="tx-table"></table></div>
@@ -527,7 +529,7 @@ boot("dash", async (root, entries) => {
           <td><span class="pill" style="box-shadow:inset 3px 0 0 ${catColor(e.category)}">${esc(e.category)}</span></td>
           <td>${esc(e.payer)}<div class="small muted">${KIND_LABELS[e.kind]}</div></td>
           <td class="r ${e.amount < 0 ? "neg" : ""}">${fmt(e.amount)}</td>
-          <td><button type="button" class="linkbtn rcpt-btn" data-rcpt="${e.id}" title="${esc(e.receipt_reason || "")}">${RECEIPT_BADGE[receiptState(e)]}${receiptState(e) === "file" ? e.receipt_files : receiptState(e) === "reason" ? "selite" : "lisää"}</button></td>
+          <td><button type="button" class="linkbtn rcpt-btn" data-rcpt="${e.id}" title="${esc(e.receipt_reason || "")}">${RECEIPT_BADGE[receiptState(e)]}${{ file: e.receipt_files, reason: "selite", missing: "lisää", legacy: '<span class="muted">vanha</span>' }[receiptState(e)]}</button></td>
           <td><a class="small" href="./?edit=${e.id}">Muokkaa</a></td>
         </tr>`).join("") : '<tr><td colspan="7" class="empty">Ei rivejä valituilla rajauksilla.</td></tr>'}</tbody>`;
   }
@@ -722,37 +724,31 @@ boot("dash", async (root, entries) => {
   // ---------- Sopimus ----------
   const LIMIT_DEFAULTS = { settleLimit: 500, buffer: 100, handlerShare: 50, rentPayoutFrom: 2000, rentKeep: 1400 };
 
-  function suggestedResponsible() {
-    const since = addMonths(ymOf(todayIso()), -12);
-    const dep = OWNERS.map((o) => [o, entries.filter((e) => e.payer === o && e.kind === "deposit" && ymOf(e.date) >= since && !/tasaus/i.test(e.description)).reduce((s, e) => s + e.amount, 0)]);
-    dep.sort((a, b) => b[1] - a[1]);
-    return { from: fyStart(nowFy), who: dep[0][0] };
-  }
 
   function contract(asOf = todayIso()) {
     const limits = { ...LIMIT_DEFAULTS, ...(settings.limits || {}) };
-    const set = (settings.responsibles || []).filter((r) => r.from <= asOf);
-    const isSuggested = !(settings.responsibles || []).length;
-    const resp = isSuggested ? [suggestedResponsible()] : set.length ? set : [settings.responsibles[0]];
-    const cur = resp[resp.length - 1];
-    const next = (settings.responsibles || []).find((r) => r.from > asOf);
+    const cur = currentResponsible(settings, entries, asOf);
+    const isSuggested = cur.suggested;
+    const next = cur.next;
     const kv = cur.who;
+    // Budjetit alkavat nollasta kuluvastaavan kauden tai uuden ajan alusta, kumpi on myöhempi.
+    const budgetFrom = cur.from > ERA_START ? cur.from : ERA_START;
     const budgetAt = (date) => {
-      const rows = entries.filter((e) => e.date >= cur.from && e.date <= date);
+      const rows = entries.filter((e) => e.date >= budgetFrom && e.date <= date);
       const credit = rows.filter((e) => e.payer === kv && (e.kind === "deposit" || e.kind === "shared")).reduce((s, e) => s + e.amount, 0);
       return Object.fromEntries(OWNERS.filter((o) => o !== kv).map((o) => [o,
         credit - rows.filter((e) => e.payer === o && (e.kind === "shared" || e.kind === "deposit")).reduce((s, e) => s + e.amount, 0)]));
     };
     const budgets = budgetAt(asOf);
-    const periodRows = entries.filter((e) => e.date >= cur.from && e.date <= asOf);
+    const periodRows = entries.filter((e) => e.date >= budgetFrom && e.date <= asOf);
     const kvDeposits = periodRows.filter((e) => e.payer === kv && e.kind === "deposit").reduce((s, e) => s + e.amount, 0);
     const kvPurchases = periodRows.filter((e) => e.payer === kv && e.kind === "shared").reduce((s, e) => s + e.amount, 0);
     const accountRunning = periodRows.filter((e) => e.kind === "account" && e.amount < 0 && e.category !== "Pankki" && !/hoitaja/i.test(e.description)).reduce((s, e) => s - e.amount, 0);
 
-    const rentRows = entries.filter((e) => e.kind === "income");
+    const rentRows = entries.filter((e) => e.kind === "income" && e.date >= ERA_START);
     const rentIncome = rentRows.reduce((s, e) => s + e.amount, 0);
     const handlerDue = rentIncome * limits.handlerShare / 100;
-    const handlerPaid = entries.filter((e) => e.kind === "account" && e.amount < 0 && /hoitaja/i.test(e.description)).reduce((s, e) => s - e.amount, 0);
+    const handlerPaid = entries.filter((e) => e.kind === "account" && e.amount < 0 && e.date >= ERA_START && /hoitaja/i.test(e.description)).reduce((s, e) => s - e.amount, 0);
     const handlerOwed = Math.max(0, handlerDue - handlerPaid);
     const rentFunds = rentIncome - handlerDue;
     const handlers = {};
@@ -761,7 +757,7 @@ boot("dash", async (root, entries) => {
     const runningFunds = accountBalance - rentFunds - handlerOwed;
     const payout = rentFunds > limits.rentPayoutFrom ? rentFunds - limits.rentKeep : 0;
     const excess = Object.fromEntries(Object.entries(budgets).map(([o, b]) => [o, Math.max(0, b - limits.buffer)]));
-    return { limits, cur, next, kv, isSuggested, budgets, budgetAt, kvDeposits, kvPurchases, accountRunning,
+    return { limits, cur, next, kv, isSuggested, budgetFrom, budgets, budgetAt, kvDeposits, kvPurchases, accountRunning,
       rentIncome, handlerDue, handlerPaid, handlerOwed, rentFunds, handlers, accountBalance, runningFunds, payout, excess };
   }
 
@@ -780,12 +776,13 @@ boot("dash", async (root, entries) => {
     const L = c.limits;
     const others = OWNERS.filter((o) => o !== c.kv);
     const settleAlerts = others.filter((o) => Math.abs(c.budgets[o]) > L.settleLimit);
-    const covered = entries.filter((e) => receiptState(e) !== "missing").length;
+    const tracked = entries.filter((e) => receiptState(e) !== "legacy");
+    const covered = tracked.filter((e) => receiptState(e) !== "missing").length;
     $("#c-kpis").innerHTML = `
-      <div class="kpi accent"><span class="label">Kuluvastaava</span><span class="value">${esc(c.kv)}</span><span class="sub">${c.isSuggested ? "ehdotus talletusten perusteella – vahvista asetuksista" : `alkaen ${fmtDate(c.cur.from)}`}${settings.bookkeeper ? ` · kirjanpitäjä ${esc(settings.bookkeeper)}` : ""}</span></div>
+      <div class="kpi accent"><span class="label">Kuluvastaava</span><span class="value">${esc(c.kv)}</span><span class="sub">${c.isSuggested ? "ehdotus talletusten perusteella – vahvista asetuksista" : `${fmtDate(c.cur.from)}–${c.cur.until ? fmtDate(c.cur.until) : ""}`}${settings.bookkeeper ? ` · kirjanpitäjä ${esc(settings.bookkeeper)}` : ""}</span></div>
       <div class="kpi"><span class="label">Tasausraja ±${fmt0(L.settleLimit)}</span><span class="value">${settleAlerts.length ? `⚠ ${settleAlerts.length}` : "✓ OK"}</span><span class="sub">${settleAlerts.length ? `${settleAlerts.join(" ja ")}: tasausta voi vaatia` : "kaikki budjetit rajojen sisällä"}</span></div>
       <div class="kpi"><span class="label">Vuokratulovarat</span><span class="value">${fmt0(c.rentFunds)}</span><span class="sub">${c.payout > 0 ? `jaettavissa ${fmt0(c.payout)}` : `jakoraja ${fmt0(L.rentPayoutFrom)}`}</span></div>
-      <div class="kpi"><span class="label">Tositteet</span><span class="value">${Math.round((covered / Math.max(1, entries.length)) * 100)} %</span><span class="sub">${entries.length - covered} kirjaukselta puuttuu</span></div>`;
+      <div class="kpi"><span class="label">Tositteet</span><span class="value">${tracked.length ? Math.round((covered / tracked.length) * 100) + " %" : "–"}</span><span class="sub">${tracked.length ? `${tracked.length - covered} kirjaukselta puuttuu` : "ei uusia kirjauksia"} · ${fmtDate(ERA_START)} alkaen</span></div>`;
 
     // Pienhankintabudjetit
     const span = Math.max(L.settleLimit * 1.4, ...others.map((o) => Math.abs(c.budgets[o]) * 1.1));
@@ -811,7 +808,7 @@ boot("dash", async (root, entries) => {
           <span class="small muted" style="grid-column:2/-1">${b >= 0 ? `käyttämätöntä budjettia – mökin saatava ${fmt0(b)}` : `hankintoja ${fmt0(-b)} yli budjetin`}${status ? ` · ${status}` : ""}</span>
         </div>`;
       }).join("")}`;
-    const months = monthRange(ymOf(c.cur.from), ymOf(todayIso()));
+    const months = monthRange(ymOf(c.budgetFrom), ymOf(todayIso()));
     const limitLine = (v, label) => ({ label, data: months.map(() => v), borderColor: cssVar("--muted"), borderDash: [4, 4], borderWidth: 1, pointRadius: 0, pointHoverRadius: 0 });
     draw("budget", "ch-budget", {
       type: "line",
@@ -828,8 +825,8 @@ boot("dash", async (root, entries) => {
           tooltip: { ...tooltipBase(), filter: (i) => !i.dataset.label.startsWith("Tasausraja"), callbacks: { label: (i) => ` ${i.dataset.label}: ${fmt0(i.raw)}` } } },
       },
     });
-    $("#c-budget-note").textContent = `Budjetti = kuluvastaavan talletukset ja pienhankinnat ${fmtDate(c.cur.from)} alkaen − osakkaan omat hankinnat ja tilisiirrot. ` +
-      `Plussalla oleva budjetti on mökin saatava osakkaalta. Kuluvastaavan vaihtuessa budjetit tasataan ja aloitetaan nollasta.`;
+    $("#c-budget-note").textContent = `Budjetti = kuluvastaavan talletukset ja pienhankinnat ${fmtDate(c.budgetFrom)} alkaen − osakkaan omat hankinnat ja tilisiirrot. ` +
+      `Plussalla oleva budjetti on mökin saatava osakkaalta. Kuluvastaavan vaihtuessa budjetit tasataan ja aloitetaan nollasta. Vanhat kirjaukset ennen ${fmtDate(ERA_START)} on tasattu.`;
 
     // Vuokratulovarat
     const rentMax = Math.max(L.rentPayoutFrom * 1.2, c.rentFunds * 1.1);
@@ -839,7 +836,7 @@ boot("dash", async (root, entries) => {
       <div class="meter-scale small muted"><span>0 €</span><span>jää ${fmt0(L.rentKeep)}</span><span>jako ${fmt0(L.rentPayoutFrom)}</span></div>
       <p class="small" style="margin:10px 0">${c.payout > 0 ? `<b>Osakkaille voi jakaa ${fmt0(c.payout)}</b> (${fmt0(c.payout / 3)} / osakas).` : `Jakoon on matkaa ${fmt0(Math.max(0, L.rentPayoutFrom - c.rentFunds))}. Varoja käytetään vain pakollisiin korjauksiin ja suuriin investointeihin.`}</p>
       <table class="mini">
-        <tr><td>Vuokratulot yhteensä</td><td class="r">${fmt(c.rentIncome)}</td></tr>
+        <tr><td>Vuokratulot ${fmtDate(ERA_START)} alkaen</td><td class="r">${fmt(c.rentIncome)}</td></tr>
         <tr><td>Hoitajien korvaus ${L.handlerShare} %</td><td class="r">−${fmt(c.handlerDue)}</td></tr>
         ${Object.entries(c.handlers).map(([h, v]) => `<tr><td class="muted">&nbsp;&nbsp;${esc(h)}</td><td class="r muted">${fmt(v)}</td></tr>`).join("")}
         <tr><td>Korvauksia maksettu tililtä</td><td class="r">${fmt(c.handlerPaid)}</td></tr>
@@ -878,7 +875,7 @@ boot("dash", async (root, entries) => {
     calc();
 
     // Tositteet
-    const scope = entries.filter(inYear);
+    const scope = entries.filter((e) => inYear(e) && receiptState(e) !== "legacy");
     const cnt = { file: 0, reason: 0, missing: 0 };
     scope.forEach((e) => cnt[receiptState(e)]++);
     const tot = Math.max(1, scope.length);
@@ -896,14 +893,14 @@ boot("dash", async (root, entries) => {
         <li><i style="background:var(--c1)"></i><span>✎ Selitetty miksi ei ole</span><b>${cnt.reason}</b></li>
         <li><i style="background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line)"></i><span>Puuttuu <a class="small" href="#tapahtumat" data-missing>näytä</a></span><b>${cnt.missing}</b></li>
       </ul>
-      <p class="small muted" style="margin:10px 0 0">Omat kirjaukset ilman tositetta: ${byCreator.map((b) => `${b.o} ${b.miss}/${b.n}`).join(" · ")}. Sopimus: kuitit tallennetaan järjestelmään.</p>`;
+      <p class="small muted" style="margin:10px 0 0">Omat kirjaukset ilman tositetta: ${byCreator.map((b) => `${b.o} ${b.miss}/${b.n}`).join(" · ")}. Seurataan ${fmtDate(ERA_START)} alkaen – vanhat kirjaukset on tasattu ilman tositteita.</p>`;
 
     // Juoksevat kulut
     const cover = c.accountRunning ? c.kvDeposits / c.accountRunning : null;
     $("#c-running").innerHTML = `
       <p style="margin:0 0 10px">Juoksevat kulut maksetaan tililtä, ja niistä vastaa kuluvastaava <b>${esc(c.kv)}</b>, joka tallettaa tilille tarvittavan summan.</p>
       <table class="mini">
-        <tr><td>Tililtä maksettu ${fmtDate(c.cur.from)} alkaen</td><td class="r">${fmt(c.accountRunning)}</td></tr>
+        <tr><td>Tililtä maksettu ${fmtDate(c.budgetFrom)} alkaen</td><td class="r">${fmt(c.accountRunning)}</td></tr>
         <tr><td>Kuluvastaavan talletukset samalla jaksolla</td><td class="r">${fmt(c.kvDeposits)}</td></tr>
         <tr><td>Kattavuus</td><td class="r"><b>${cover === null ? "–" : Math.round(cover * 100) + " %"}</b></td></tr>
         <tr><td>Juoksevien kulujen varat tilillä</td><td class="r"><b>${fmt(c.runningFunds)}</b></td></tr>
@@ -927,19 +924,20 @@ boot("dash", async (root, entries) => {
   }
 
   function renderSettings(c) {
-    const resp = (settings.responsibles || []).length ? settings.responsibles : [suggestedResponsible()];
+    const resp = (settings.responsibles || []).length ? settings.responsibles : [currentResponsible(settings, entries)];
     const L = c.limits;
     $("#c-settings-sub").textContent = settings.updated_at ? `· muokattu ${fmtDate(settings.updated_at.slice(0, 10))} (${settings.updated_by || "?"})` : "· oletusarvot";
     const ownerSel = (v, id, empty) => `<select class="input" ${id}>${empty ? `<option value="">${empty}</option>` : ""}${OWNERS.map((o) => `<option ${o === v ? "selected" : ""}>${o}</option>`).join("")}</select>`;
     $("#c-settings").innerHTML = `
       <div class="settings-grid">
         <div>
-          <span class="label">Kuluvastaavat</span>
+          <span class="label">Kuluvastaavat</span> <span class="small muted">alkaen – asti (valinnainen) – kuka</span>
           <div id="s-resp" style="display:grid;gap:8px;margin-top:6px">
-            ${resp.map((r) => `<div class="s-row"><input class="input" type="date" value="${r.from}" data-from>${ownerSel(r.who, "data-who")}<button type="button" class="linkbtn danger" data-rm>Poista</button></div>`).join("")}
+            ${resp.map((r) => `<div class="s-row"><input class="input" type="date" value="${r.from}" data-from title="Alkaen"><input class="input" type="date" value="${r.until || ""}" data-until title="Asti (valinnainen)">${ownerSel(r.who, "data-who")}<button type="button" class="linkbtn danger" data-rm>Poista</button></div>`).join("")}
           </div>
           <button type="button" class="linkbtn" id="s-add" style="margin-top:6px">+ Kuluvastaavan vaihdos</button>
         </div>
+        <div class="field"><label class="label" for="s-era">Uusi aika alkaa</label><input class="input" id="s-era" type="date" value="${ERA_START}"><span class="small muted">Vanhemmat kirjaukset on tasattu: ei tositteita, budjetit nollasta.</span></div>
         <div class="field"><label class="label">Kirjanpitäjä</label>${ownerSel(settings.bookkeeper, 'id="s-book"', "Ei valittu")}</div>
         ${[["settleLimit", "Tasausraja €"], ["buffer", "Puskuri / osakas €"], ["handlerShare", "Hoitajan osuus %"], ["rentPayoutFrom", "Vuokratulojen jakoraja €"], ["rentKeep", "Vuokratuloja jää vähintään €"]]
           .map(([k, l]) => `<div class="field"><label class="label" for="s-${k}">${l}</label><input class="input" id="s-${k}" inputmode="decimal" value="${L[k]}"></div>`).join("")}
@@ -949,20 +947,22 @@ boot("dash", async (root, entries) => {
     box.querySelector("#s-add").addEventListener("click", () => {
       const row = document.createElement("div");
       row.className = "s-row";
-      row.innerHTML = `<input class="input" type="date" value="${fyStart(nowFy + 1)}" data-from>${ownerSel(OWNERS[0], "data-who")}<button type="button" class="linkbtn danger" data-rm>Poista</button>`;
+      row.innerHTML = `<input class="input" type="date" value="${fyStart(nowFy + 1)}" data-from title="Alkaen"><input class="input" type="date" value="${fyEnd(nowFy + 1)}" data-until title="Asti (valinnainen)">${ownerSel(OWNERS[0], "data-who")}<button type="button" class="linkbtn danger" data-rm>Poista</button>`;
       box.querySelector("#s-resp").append(row);
     });
     box.querySelector("#s-resp").addEventListener("click", (ev) => { if (ev.target.closest("[data-rm]")) ev.target.closest(".s-row").remove(); });
     box.querySelector("#s-save").addEventListener("click", async (ev) => {
       const body = {
-        responsibles: [...box.querySelectorAll(".s-row")].map((r) => ({ from: r.querySelector("[data-from]").value, who: r.querySelector("[data-who]").value })),
+        responsibles: [...box.querySelectorAll(".s-row")].map((r) => ({ from: r.querySelector("[data-from]").value, until: r.querySelector("[data-until]").value || null, who: r.querySelector("[data-who]").value })),
         bookkeeper: box.querySelector("#s-book").value || null,
+        eraStart: box.querySelector("#s-era").value || null,
         limits: Object.fromEntries(Object.keys(LIMIT_DEFAULTS).map((k) => [k, parseAmount(box.querySelector(`#s-${k}`).value)])),
       };
       ev.target.disabled = true;
       try {
         await saveSettings(body);
         settings = await getSettings();
+        setEraStart(settings);
         toast("Asetukset tallennettu");
         renderContract();
         $("#c-settings-box").open = true;
