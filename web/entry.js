@@ -24,6 +24,7 @@ boot("entry", (root, entries) => {
 
   root.innerHTML = `
     <div class="wrap narrow" style="display:grid;gap:24px">
+      <div class="hello" id="hello"></div>
       <form class="panel entry-form" id="entry-form" novalidate>
         <div class="panel-head" style="margin:0">
           <h1 id="form-title">Uusi kirjaus</h1>
@@ -88,6 +89,19 @@ boot("entry", (root, entries) => {
         </div>
         <ul class="recent" id="recent"></ul>
       </section>
+
+      <section class="panel">
+        <div class="panel-head"><h2>Asiakirjat</h2><span class="small muted">vain kirjautuneille</span></div>
+        <ul class="docs" id="docs"><li class="muted small">Ladataan…</li></ul>
+        <details class="doc-upload">
+          <summary class="small">Lisää uusi asiakirja tai sopimusversio</summary>
+          <div style="display:grid;gap:8px;margin-top:10px">
+            <input class="input" id="doc-title" maxlength="120" placeholder="Otsikko, esim. Yhteisomistussopimus (allekirjoitettu)">
+            <input class="input" id="doc-file" type="file" accept="application/pdf,image/*">
+            <button type="button" class="btn" id="doc-save">Tallenna asiakirja</button>
+          </div>
+        </details>
+      </section>
     </div>`;
 
   const $ = (s) => root.querySelector(s);
@@ -118,6 +132,32 @@ boot("entry", (root, entries) => {
     $("#save-btn").textContent = state.editing ? "Tallenna muutokset" : "Tallenna";
   }
 
+  function renderHello() {
+    const me = computeRoles(entries).find((r) => r.name === currentUser());
+    const mine = entries.filter((e) => e.created_by === currentUser() && receiptState(e) === "missing");
+    $("#hello").innerHTML = (me ? `
+      <span class="role-emoji" aria-hidden="true">${me.role.emoji}</span>
+      <span><span class="small muted">Hei ${esc(me.name)}, roolisi mökkiporukassa</span><br><b>${esc(me.role.title)}</b>
+      <a class="small" href="./tilanne.html#roolit">kaikki roolit</a></span>` : "") +
+      (mine.length ? `<p class="nudge">🧾 ${mine.length} kirjaukseltasi puuttuu tosite. <a href="./tilanne.html?tositteet=puuttuu#tapahtumat">Näytä</a></p>` : "");
+  }
+
+  async function renderDocs() {
+    try {
+      const docs = await getDocuments();
+      $("#docs").innerHTML = docs.length ? docs.map((d, i) => `
+        <li>
+          <span class="doc-icon" aria-hidden="true">${ICONS.doc}</span>
+          <span class="doc-meta"><b>${esc(d.title)}</b>${i === 0 ? ' <span class="pill">uusin</span>' : ""}<br>
+            <span class="small muted">${esc(d.filename)} · ${Math.round(d.size / 1024)} kt · ${fmtDate(d.created_at.slice(0, 10))}</span></span>
+          <span class="doc-acts">
+            <button type="button" class="linkbtn" data-doc-open="${d.id}">Avaa</button>
+            <button type="button" class="btn" data-doc-dl="${d.id}">Lataa</button>
+          </span>
+        </li>`).join("") : '<li class="muted small">Ei vielä asiakirjoja.</li>';
+    } catch (e) { $("#docs").innerHTML = `<li class="error-text">${esc(e.message)}</li>`; }
+  }
+
   function renderRecent() {
     const descs = [...new Set(entries.map((e) => e.description))].slice(0, 200);
     $("#desc-list").innerHTML = descs.map((d) => `<option value="${esc(d)}"></option>`).join("");
@@ -127,10 +167,11 @@ boot("entry", (root, entries) => {
       const who = e.kind === "account" || e.kind === "income" ? "Tili" : e.payer;
       const amt = e.kind === "shared" ? e.amount : e.amount;
       return `<li data-id="${e.id}">
-        <span class="desc">${esc(e.description)}</span>
+        <span class="desc">${RECEIPT_BADGE[receiptState(e)]}${esc(e.description)}</span>
         <span class="amt ${amt < 0 ? "neg" : ""}">${fmt(amt)}</span>
         <span class="meta">${fmtDate(e.date)} · ${esc(who)} · ${esc(e.category)}</span>
         <span class="acts">
+          <button type="button" class="linkbtn" data-rcpt="${e.id}">${receiptState(e) === "missing" ? "Lisää tosite" : "Tosite"}</button>
           <button type="button" class="linkbtn" data-edit="${e.id}">Muokkaa</button>
           <button type="button" class="linkbtn danger" data-del="${e.id}">Poista</button>
         </span>
@@ -194,6 +235,8 @@ boot("entry", (root, entries) => {
   $("#recent").addEventListener("click", async (ev) => {
     const edit = ev.target.closest("[data-edit]");
     const del = ev.target.closest("[data-del]");
+    const rcpt = ev.target.closest("[data-rcpt]");
+    if (rcpt) openReceiptDialog(entries.find((e) => e.id === +rcpt.dataset.rcpt), onReceiptChange);
     if (edit) startEdit(entries.find((e) => e.id === +edit.dataset.edit));
     if (del) {
       // Kaksivaiheinen vahvistus ilman selaimen dialogia.
@@ -243,12 +286,14 @@ boot("entry", (root, entries) => {
         const saved = await createEntry(body);
         entries = [saved, ...entries];
         toast(`Tallennettu: ${description} ${fmt(signed)}`);
+        openReceiptDialog(saved, onReceiptChange, { afterSave: true });
       }
       const keepType = state.type;
       resetForm();
       state.type = keepType;
       render();
       renderRecent();
+      renderHello();
     } catch (e) {
       err.textContent = e.message;
     } finally {
@@ -256,8 +301,35 @@ boot("entry", (root, entries) => {
     }
   });
 
+  function onReceiptChange(updated) {
+    entries = entries.map((e) => (e.id === updated.id ? { ...e, ...updated } : e));
+    renderRecent();
+    renderHello();
+  }
+
+  root.querySelector("#docs").addEventListener("click", (ev) => {
+    const o = ev.target.closest("[data-doc-open]");
+    const d = ev.target.closest("[data-doc-dl]");
+    if (o) openFile(`/api/documents/${o.dataset.docOpen}`);
+    if (d) openFile(`/api/documents/${d.dataset.docDl}`, true);
+  });
+  $("#doc-save").addEventListener("click", async () => {
+    const f = $("#doc-file").files[0];
+    if (!f) { toast("Valitse tiedosto", true); return; }
+    $("#doc-save").disabled = true;
+    try {
+      await uploadDocument(await prepareUpload(f), $("#doc-title").value.trim());
+      $("#doc-title").value = ""; $("#doc-file").value = "";
+      toast("Asiakirja tallennettu");
+      renderDocs();
+    } catch (e) { toast(e.message, true); }
+    finally { $("#doc-save").disabled = false; }
+  });
+
   render();
   renderRecent();
+  renderHello();
+  renderDocs();
 
   const editId = new URLSearchParams(location.search).get("edit");
   if (editId) {
