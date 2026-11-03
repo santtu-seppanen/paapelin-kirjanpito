@@ -23,9 +23,9 @@ Jokainen rivi on yksi neljästä tyypistä:
 - `account` – tilin oma tapahtuma (lasku tililtä negatiivisena, korko positiivisena)
 - `income` – vuokratulo tilille
 
-Osakkaan **saldo** = omat yhteiset kulut + tilisiirrot − ⅓ yhteisistä nettokuluista
-(yhteiset kulut + tililtä maksetut − tulot). Saldojen summa on tilin saldo, joten tasatilanteessa
-kaikkien saldot ovat yhtä suuret.
+Osakkaan **ero** = omat yhteiset kulut + tilisiirrot − ⅓ yhteisistä nettokuluista (yhteiset kulut +
+tililtä maksetut − tulot), verrattuna osakkaiden keskiarvoon. Erojen summa on 0, ja tasatilanteessa
+kaikilla on 0 €. Yhteisen tilin saldoa ei jaeta osakkaille vaan se näytetään erikseen.
 
 Tilikausi on 1.11.–31.10. (yhteisomistussopimuksen kohta 8).
 

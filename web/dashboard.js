@@ -118,7 +118,7 @@ boot("dash", async (root, entries) => {
         <section class="panel span-12">
           <div class="panel-head"><h2>Tilanne osakkaiden välillä</h2><span class="small muted" id="owner-table-sub"></span></div>
           <div class="table-scroll" style="max-height:560px;overflow-y:auto"><table id="owner-table"></table></div>
-          <p class="small muted" style="margin:12px 0 0">Maksoi = yhteiset kulut + tilisiirrot kuukauden aikana. Ero = kertynyt saldo miinus osakkaiden keskiarvo kuukauden lopussa; tasatilanteessa kaikilla 0 €.</p>
+          <p class="small muted" style="margin:12px 0 0">Maksoi = yhteiset kulut + tilisiirrot kuukauden aikana. Ero = kertynyt ero tasaosuuteen (omat kulut ja tilisiirrot − osuus) miinus osakkaiden keskiarvo kuukauden lopussa; tasatilanteessa kaikilla 0 €.</p>
         </section>
       </div>
 
@@ -251,14 +251,14 @@ boot("dash", async (root, entries) => {
       </div>`;
     }).join("");
     $("#balance-table").innerHTML = `
-      <thead><tr><th></th><th class="r">Kulut</th><th class="r">Tilille</th><th class="r">Osuus</th><th class="r">Saldo</th></tr></thead>
-      <tbody>${b.people.map((p) => `<tr><td><b>${p.name}</b></td><td class="r">${fmt0(p.shared)}</td><td class="r">${fmt0(p.deposit)}</td><td class="r">${fmt0(p.share)}</td><td class="r">${fmt(p.saldo)}</td></tr>`).join("")}</tbody>`;
-    const top = Math.max(...b.people.map((p) => p.saldo));
-    const payers = b.people.filter((p) => top - p.saldo >= 5);
-    $("#settle").innerHTML = (payers.length
-      ? `Tasaus tilisiirroilla: ${payers.map((p) => `<b>${p.name}</b> ${fmt(top - p.saldo)}`).join(", ")}. `
-      : "Saldot ovat tasan, tasausta ei tarvita. ") +
-      `<span class="muted">Saldo = omat kulut ja tilisiirrot − kolmasosa yhteisistä nettokuluista. Saldojen summa on tilin saldo.</span>`;
+      <thead><tr><th></th><th class="r">Kulut</th><th class="r">Tilille</th><th class="r">Osuus</th><th class="r">Ero tasaosuuteen</th></tr></thead>
+      <tbody>${b.people.map((p) => `<tr><td><b>${p.name}</b></td><td class="r">${fmt0(p.shared)}</td><td class="r">${fmt0(p.deposit)}</td><td class="r">${fmt0(p.share)}</td><td class="r">${p.diff >= 0 ? "+" : ""}${fmt(p.diff)}</td></tr>`).join("")}</tbody>`;
+    const top = Math.max(...b.people.map((p) => p.diff));
+    const payers = b.people.filter((p) => top - p.diff >= 5);
+    $("#settle").innerHTML = `<b>Yhteisen tilin saldo ${fmt(b.accountBalance)}</b> (ei jaeta osakkaille). ` + (payers.length
+      ? `Tasaus tilisiirroilla: ${payers.map((p) => `<b>${p.name}</b> ${fmt(top - p.diff)}`).join(", ")}. `
+      : "Osakkaat ovat tasoissa, tasausta ei tarvita. ") +
+      `<span class="muted">Ero = omat kulut ja tilisiirrot − kolmasosa yhteisistä nettokuluista, osakkaiden keskiarvoon verrattuna.</span>`;
   }
 
   // ---------- Kuukausikaavio ----------
@@ -565,7 +565,6 @@ boot("dash", async (root, entries) => {
         cost: inMonth.reduce((s, e) => s + costOf(e), 0),
         paid: Object.fromEntries(OWNERS.map((o) => [o, inMonth.filter((e) => e.payer === o && (e.kind === "shared" || e.kind === "deposit")).reduce((s, e) => s + e.amount, 0)])),
         diff: Object.fromEntries(b.people.map((p) => [p.name, p.diff])),
-        saldo: Object.fromEntries(b.people.map((p) => [p.name, p.saldo])),
       };
     });
   }
