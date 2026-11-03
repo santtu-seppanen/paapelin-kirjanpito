@@ -276,10 +276,14 @@ function authorized(request, env) {
 // Uusi kirjaus Google Sheetsiin (Apps Script -webhook). Rivi: pvm | Kulu | maksaja | saaja | Summa.
 // Ei tee mitään, ellei SHEET_WEBHOOK_URL ole asetettu; virhe ei estä kirjauksen tallennusta.
 async function appendToSheet(env, e) {
-  if (!env.SHEET_WEBHOOK_URL) return;
-  const payee = e.kind === "deposit" ? "Tili" : e.kind === "income" ? "Tili" : "Yhteiset";
+  if (!env.SHEET_WEBHOOK_URL) {
+    console.warn("Sheets-kirjaus ohitettu: SHEET_WEBHOOK_URL puuttuu");
+    return;
+  }
+  // Tilin omat tapahtumat ja talletukset: saaja Tili; yhteiset kulut: Yhteiset.
+  const payee = e.kind === "shared" ? "Yhteiset" : "Tili";
   try {
-    await fetch(env.SHEET_WEBHOOK_URL, {
+    const res = await fetch(env.SHEET_WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({
@@ -287,8 +291,13 @@ async function appendToSheet(env, e) {
         row: [e.date, e.description, e.payer, payee, e.amount],
       }),
     });
+    const text = (await res.text()).trim();
+    // Skripti vastaa "ok", kun rivi on lisätty; muu vastaus (forbidden, kirjautumissivu, virhe) on vika.
+    if (!res.ok || text !== "ok") {
+      console.error(`Sheets-kirjaus epäonnistui: HTTP ${res.status}, vastaus: ${text.slice(0, 200)}`);
+    }
   } catch (err) {
-    console.error("Sheets-kirjaus epäonnistui", err);
+    console.error("Sheets-kirjaus epäonnistui", String(err));
   }
 }
 
