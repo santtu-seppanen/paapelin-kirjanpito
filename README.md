@@ -92,3 +92,12 @@ samaa APIa kuin sivusto). Workerin `ALLOWED_ORIGINS` sisältää sovelluksen oso
   (debug-APK, asennus puhelimeen sivulatauksella; sallittava "tuntemattomat lähteet").
 - **Omalla koneella:** `npm install && npm run sync && npm run open` (Android Studio).
 - Muutettuasi `web/`-kansiota aja `npm run sync`, jotta muutokset kopioituvat sovellukseen.
+
+### Julkaisu Play-kauppaan
+
+1. Luo upload-avain (kerran, säilytä tiedosto ja salasanat turvallisesti, älä commitoi):
+   `keytool -genkeypair -v -keystore upload.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000`
+2. Lisää repon salaisuudet (Settings → Secrets → Actions): `ANDROID_KEYSTORE_BASE64` (`base64 -w0 upload.jks`),
+   `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`upload`), `ANDROID_KEY_PASSWORD`.
+3. Aja workflow "Rakenna Android-sovellus" käsin → lataa `paapelin-kirjanpito-aab`.
+4. Play Console → Luo sovellus → lataa AAB sisäiseen testaukseen (Play App Signing päälle). Versiokoodi = ajon numero.

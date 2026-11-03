@@ -28,3 +28,35 @@ jobs:
         with:
           name: paapelin-kirjanpito-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+  release:
+    # Allekirjoitettu AAB Play-kauppaan; ajetaan käsin (Run workflow), kun salaisuudet on asetettu.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npx cap sync android
+      - name: Pura avainkirjasto
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload.jks"
+      - name: Rakenna allekirjoitettu AAB
+        working-directory: android
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/upload.jks
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+        run: ./gradlew bundleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paapelin-kirjanpito-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
