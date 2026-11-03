@@ -4,14 +4,21 @@ const SECRET = "VAIHDA_TÄHÄN_PITKÄ_SATUNNAINEN_MERKKIJONO"; // sama kuin Work
 const SHEET_NAME = ""; // tyhjä = taulukon ensimmäinen välilehti
 
 function doPost(e) {
-  const body = JSON.parse(e.postData.contents);
-  if (body.secret !== SECRET) return ContentService.createTextOutput("forbidden");
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = SHEET_NAME ? ss.getSheetByName(SHEET_NAME) : ss.getSheets()[0];
-  const [date, desc, payer, payee, amount] = body.row;
-  // Päivämäärä taulukon aikavyöhykkeellä (ei siirry edelliselle päivälle), näytetään ilman kellonaikaa.
-  const day = Utilities.parseDate(date, ss.getSpreadsheetTimeZone(), "yyyy-MM-dd");
-  sheet.appendRow([day, desc, payer, payee, amount]);
-  sheet.getRange(sheet.getLastRow(), 1).setNumberFormat("d.M.yyyy");
-  return ContentService.createTextOutput("ok");
+  try {
+    const body = JSON.parse(e.postData.contents);
+    if (body.secret !== SECRET) return ContentService.createTextOutput("forbidden");
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = SHEET_NAME ? ss.getSheetByName(SHEET_NAME) : ss.getSheets()[0];
+    const [date, desc, payer, payee, amount] = body.row;
+    const [y, m, d] = date.split("-").map(Number);
+    // Keskipäivä, jotta aikavyöhykkeiden ero ei siirrä päivää; muoto näyttää vain päivämäärän.
+    sheet.appendRow([new Date(y, m - 1, d, 12), desc, payer, payee, amount]);
+    try {
+      sheet.getRange(sheet.getLastRow(), 1).setNumberFormat("d.M.yyyy");
+    } catch (err) { /* muotoilu on kosmeettinen, rivi on jo lisätty */ }
+    return ContentService.createTextOutput("ok");
+  } catch (err) {
+    // Worker kirjaa vastauksen lokiin, joten virheen syy näkyy Cloudflaressa.
+    return ContentService.createTextOutput("error: " + err);
+  }
 }
