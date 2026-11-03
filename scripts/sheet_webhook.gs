@@ -7,10 +7,18 @@ const SHEET_NAME = "Kulut"; // välilehden nimi; tyhjä = ensimmäinen välileht
 function doPost(e) {
   const body = JSON.parse(e.postData.contents);
   if (body.secret !== SECRET) return ContentService.createTextOutput("forbidden");
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = SHEET_NAME ? ss.getSheetByName(SHEET_NAME) : ss.getSheets()[0];
-  const [date, desc, payer, payee, amount] = body.row;
-  const [y, m, d] = date.split("-").map(Number);
-  sheet.appendRow([new Date(y, m - 1, d), desc, payer, payee, amount]);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = SHEET_NAME ? ss.getSheetByName(SHEET_NAME) : ss.getSheets()[0];
+    const [date, desc, payer, payee, amount] = body.row;
+    // Päivämäärä taulukon omalla aikavyöhykkeellä, jotta se ei siirry edelliselle päivälle.
+    const day = Utilities.parseDate(date, ss.getSpreadsheetTimeZone(), "yyyy-MM-dd");
+    sheet.appendRow([day, desc, payer, payee, amount]);
+    sheet.getRange(sheet.getLastRow(), 1).setNumberFormat("d.M.yyyy"); // vain päivämäärä, ei kellonaikaa
+  } finally {
+    lock.releaseLock();
+  }
   return ContentService.createTextOutput("ok");
 }
