@@ -390,8 +390,9 @@ function costOf(e) {
   return 0;
 }
 
-// Henkilöiden saldot: oma panos (maksetut kulut + tilisiirrot) miinus kolmasosa yhteisistä
-// nettokuluista. Saldojen summa on tilin saldo, joten tasatilanteessa saldot ovat yhtä suuret.
+// Henkilöiden saldot (kuten Excelissä): oma panos (maksetut kulut + tilisiirrot) miinus kolmasosa
+// kaikista kuluista (yhteiset kulut + tililtä maksetut). Vuokratuloja ja tilin saldoa ei jaeta
+// osakkaille, joten saldojen summa ei ole 0 €; tilin saldo näytetään erikseen.
 function balances(entries) {
   const paid = Object.fromEntries(OWNERS.map((o) => [o, { shared: 0, deposit: 0 }]));
   let sharedTotal = 0, accountNet = 0, income = 0, deposits = 0;
@@ -401,14 +402,13 @@ function balances(entries) {
     else if (e.kind === "account") accountNet += e.amount;
     else if (e.kind === "income") income += e.amount;
   }
-  const groupCost = sharedTotal - accountNet - income;
+  const groupCost = sharedTotal - accountNet;
   const share = groupCost / OWNERS.length;
   const people = OWNERS.map((o) => {
     const contributed = paid[o].shared + paid[o].deposit;
-    return { name: o, ...paid[o], contributed, share, saldo: contributed - share };
+    const saldo = contributed - share;
+    return { name: o, ...paid[o], contributed, share, saldo, diff: saldo };
   });
-  const avg = people.reduce((s, p) => s + p.saldo, 0) / people.length;
-  people.forEach((p) => { p.diff = p.saldo - avg; });
   return { people, accountBalance: deposits + accountNet + income, groupCost, sharedTotal, income };
 }
 

@@ -118,7 +118,7 @@ boot("dash", async (root, entries) => {
         <section class="panel span-12">
           <div class="panel-head"><h2>Tilanne osakkaiden välillä</h2><span class="small muted" id="owner-table-sub"></span></div>
           <div class="table-scroll" style="max-height:560px;overflow-y:auto"><table id="owner-table"></table></div>
-          <p class="small muted" style="margin:12px 0 0">Maksoi = yhteiset kulut + tilisiirrot kuukauden aikana. Ero = kertynyt ero tasaosuuteen (omat kulut ja tilisiirrot − osuus) miinus osakkaiden keskiarvo kuukauden lopussa; tasatilanteessa kaikilla 0 €.</p>
+          <p class="small muted" style="margin:12px 0 0">Maksoi = yhteiset kulut + tilisiirrot kuukauden aikana. Saldo = omat kulut ja tilisiirrot − osuus kaikista kuluista kuukauden lopussa; tasatilanteessa kaikilla 0 €.</p>
         </section>
       </div>
 
@@ -262,7 +262,7 @@ boot("dash", async (root, entries) => {
     $("#settle").innerHTML = (payers.length
       ? `Tasaus tilisiirroilla: ${payers.map((p) => `<b>${p.name}</b> ${fmt(top - p.diff)}`).join(", ")}. `
       : "Osakkaat ovat tasoissa, tasausta ei tarvita. ") +
-      `<span class="muted">Osakkaan saldo = omat kulut ja tilisiirrot − kolmasosa yhteisistä nettokuluista, ilman tilin varoja (osakkaiden saldojen summa on 0 €). Tilin saldo näkyy omalla rivillään eikä sitä jaeta osakkaille.</span>`;
+      `<span class="muted">Osakkaan saldo = omat kulut ja tilisiirrot − kolmasosa kaikista kuluista (yhteiset + tililtä maksetut). Vuokratuloja ja tilin saldoa ei jaeta osakkaille; tilin saldo näkyy omalla rivillään.</span>`;
   }
 
   // ---------- Kuukausikaavio ----------
