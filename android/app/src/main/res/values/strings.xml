@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Paapelin kirjanpito</string>
+    <string name="title_activity_main">Paapelin kirjanpito</string>
+    <string name="package_name">fi.paapeli.kirjanpito</string>
+    <string name="custom_url_scheme">fi.paapeli.kirjanpito</string>
+</resources>

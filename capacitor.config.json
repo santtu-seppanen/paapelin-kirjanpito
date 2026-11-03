@@ -1,0 +1,11 @@
+{
+  "appId": "fi.paapeli.kirjanpito",
+  "appName": "Paapelin kirjanpito",
+  "webDir": "web",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#1f5e4c"
+  }
+}

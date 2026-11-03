@@ -5,7 +5,7 @@
   "compatibility_date": "2026-10-01",
   "workers_dev": true,
   "vars": {
-    "ALLOWED_ORIGINS": "https://santtu-seppanen.github.io"
+    "ALLOWED_ORIGINS": "https://santtu-seppanen.github.io,https://localhost"
   },
   "d1_databases": [
     {

@@ -82,3 +82,13 @@ cd worker && npm run db:seed
 
 Paikallinen testaus: `npx wrangler dev` (API) ja esim. `python3 -m http.server -d web 8080`
 (muuta `web/config.js`:n osoite tarvittaessa). Worker sallii localhost-originit.
+
+## Android-sovellus
+
+`android/` on Capacitor-projekti, joka pakkaa `web/`-kansion natiiviksi sovellukseksi (sovellus käyttää
+samaa APIa kuin sivusto). Workerin `ALLOWED_ORIGINS` sisältää sovelluksen osoitteen `https://localhost`.
+
+- **APK:n lataus:** GitHub → Actions → "Rakenna Android-sovellus" → ajon Artifacts → `paapelin-kirjanpito-apk`
+  (debug-APK, asennus puhelimeen sivulatauksella; sallittava "tuntemattomat lähteet").
+- **Omalla koneella:** `npm install && npm run sync && npm run open` (Android Studio).
+- Muutettuasi `web/`-kansiota aja `npm run sync`, jotta muutokset kopioituvat sovellukseen.
