@@ -118,7 +118,7 @@ boot("dash", async (root, entries) => {
         <section class="panel span-12">
           <div class="panel-head"><h2>Tilanne osakkaiden välillä</h2><span class="small muted" id="owner-table-sub"></span></div>
           <div class="table-scroll" style="max-height:560px;overflow-y:auto"><table id="owner-table"></table></div>
-          <p class="small muted" style="margin:12px 0 0">Maksoi = yhteiset kulut + tilisiirrot kuukauden aikana. Saldo = omat kulut ja tilisiirrot − osuus kaikista kuluista kuukauden lopussa; tasatilanteessa kaikilla 0 €.</p>
+          <p class="small muted" style="margin:12px 0 0">Maksoi = yhteiset kulut + tilisiirrot kuukauden aikana. Saldo = omat kulut ja tilisiirrot − osuus kaikista kuluista kuukauden lopussa.</p>
         </section>
       </div>
 
