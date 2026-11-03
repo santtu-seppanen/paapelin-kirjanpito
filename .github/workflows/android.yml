@@ -2,7 +2,7 @@ name: Rakenna Android-sovellus
 
 on:
   push:
-    branches: [main]
+    branches: [main, ccr-d7d20134-aard6p]
     paths: ["web/**", "android/**", "capacitor.config.json", "package.json", ".github/workflows/android.yml"]
   workflow_dispatch:
 
