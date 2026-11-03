@@ -309,7 +309,6 @@ boot("entry", (root, entries) => {
         const saved = await createEntry(body);
         entries = [saved, ...entries];
         toast(`Tallennettu: ${description} ${fmt(signed)}`);
-        openReceiptDialog(saved, onReceiptChange, { afterSave: true });
       }
       const keepType = state.type;
       resetForm();
