@@ -250,15 +250,19 @@ boot("dash", async (root, entries) => {
         <span class="num ${p.diff >= 0.005 ? "pos" : p.diff <= -0.005 ? "neg" : ""}">${p.diff >= 0 ? "+" : ""}${fmt(p.diff)}</span>
       </div>`;
     }).join("");
+    const acct = entries.filter((e) => e.kind === "account");
+    const acctOut = -acct.filter((e) => e.amount < 0).reduce((t, e) => t + e.amount, 0);
+    const acctIn = entries.filter((e) => e.kind === "deposit" || e.kind === "income" || (e.kind === "account" && e.amount > 0)).reduce((t, e) => t + e.amount, 0);
     $("#balance-table").innerHTML = `
-      <thead><tr><th></th><th class="r">Kulut</th><th class="r">Tilille</th><th class="r">Osuus</th><th class="r">Ero tasaosuuteen</th></tr></thead>
-      <tbody>${b.people.map((p) => `<tr><td><b>${p.name}</b></td><td class="r">${fmt0(p.shared)}</td><td class="r">${fmt0(p.deposit)}</td><td class="r">${fmt0(p.share)}</td><td class="r">${p.diff >= 0 ? "+" : ""}${fmt(p.diff)}</td></tr>`).join("")}</tbody>`;
+      <thead><tr><th></th><th class="r">Kulut</th><th class="r">Tilille</th><th class="r">Osuus</th><th class="r">Saldo</th></tr></thead>
+      <tbody>${b.people.map((p) => `<tr><td><b>${p.name}</b></td><td class="r">${fmt0(p.shared)}</td><td class="r">${fmt0(p.deposit)}</td><td class="r">${fmt0(p.share)}</td><td class="r">${p.diff >= 0 ? "+" : ""}${fmt(p.diff)}</td></tr>`).join("")}
+      <tr class="account-row"><td><b>Tili</b></td><td class="r">${fmt0(acctOut)}</td><td class="r">${fmt0(acctIn)}</td><td class="r muted">–</td><td class="r"><b>${fmt(b.accountBalance)}</b></td></tr></tbody>`;
     const top = Math.max(...b.people.map((p) => p.diff));
     const payers = b.people.filter((p) => top - p.diff >= 5);
-    $("#settle").innerHTML = `<b>Yhteisen tilin saldo ${fmt(b.accountBalance)}</b> (ei jaeta osakkaille). ` + (payers.length
+    $("#settle").innerHTML = (payers.length
       ? `Tasaus tilisiirroilla: ${payers.map((p) => `<b>${p.name}</b> ${fmt(top - p.diff)}`).join(", ")}. `
       : "Osakkaat ovat tasoissa, tasausta ei tarvita. ") +
-      `<span class="muted">Ero = omat kulut ja tilisiirrot − kolmasosa yhteisistä nettokuluista, osakkaiden keskiarvoon verrattuna.</span>`;
+      `<span class="muted">Osakkaan saldo = omat kulut ja tilisiirrot − kolmasosa yhteisistä nettokuluista, ilman tilin varoja (osakkaiden saldojen summa on 0 €). Tilin saldo näkyy omalla rivillään eikä sitä jaeta osakkaille.</span>`;
   }
 
   // ---------- Kuukausikaavio ----------

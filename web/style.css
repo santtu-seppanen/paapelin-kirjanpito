@@ -348,3 +348,5 @@ tr.group-start td { border-top: 2px solid var(--line); }
 .empty { padding: 28px 0; text-align: center; color: var(--muted); }
 .loading { padding: 60px 0; text-align: center; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+#balance-table .account-row td { border-top: 2px solid var(--line, #ddd); }
