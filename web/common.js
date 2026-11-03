@@ -188,7 +188,7 @@ const RECEIPT_BADGE = {
 };
 
 // Ponnahdusikkuna: liitä kuitti/lasku tai kirjoita selite. onChange(entry) saa päivitetyn rivin.
-function openReceiptDialog(entry, onChange, { afterSave = false } = {}) {
+function openReceiptDialog(entry, onChange) {
   let dlg = document.getElementById("receipt-dialog");
   if (dlg) dlg.remove();
   dlg = document.createElement("dialog");
@@ -197,7 +197,7 @@ function openReceiptDialog(entry, onChange, { afterSave = false } = {}) {
   dlg.innerHTML = `
     <form method="dialog" class="modal-body">
       <div class="panel-head" style="margin:0">
-        <h2>${afterSave ? "Lisää tosite" : "Tositteet"}</h2>
+        <h2>Tositteet</h2>
         <button class="linkbtn" value="close" aria-label="Sulje">Sulje</button>
       </div>
       <p class="muted small" style="margin:0">${esc(entry.description)} · ${fmt(entry.amount)} · ${fmtDate(entry.date)}</p>
@@ -218,7 +218,6 @@ function openReceiptDialog(entry, onChange, { afterSave = false } = {}) {
         <button type="button" class="btn" id="rcpt-save-reason">Tallenna</button>
       </div>
       <p class="error-text" id="rcpt-error" role="alert"></p>
-      ${afterSave ? '<button class="btn ghost" value="later">Lisään myöhemmin</button>' : ""}
     </form>`;
   document.body.append(dlg);
   const $ = (s) => dlg.querySelector(s);
@@ -241,7 +240,7 @@ function openReceiptDialog(entry, onChange, { afterSave = false } = {}) {
     Object.assign(entry, updated);
     onChange && onChange(entry);
     toast(msg);
-    if (afterSave) dlg.close(); else refresh();
+    refresh();
   }
 
   $("#rcpt-file").addEventListener("change", async (ev) => {
