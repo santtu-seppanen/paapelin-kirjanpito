@@ -25,12 +25,12 @@ const MAX_FILE_BYTES = 1_900_000;
 const FILE_TYPES = /^(image\/(jpeg|png|webp|gif|heic|heif)|application\/pdf)$/;
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const cors = corsHeaders(request, env);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
 
     try {
-      const res = await route(request, env);
+      const res = await route(request, env, ctx);
       for (const [k, v] of Object.entries(cors)) res.headers.set(k, v);
       return res;
     } catch (err) {
@@ -40,7 +40,7 @@ export default {
   },
 };
 
-async function route(request, env) {
+async function route(request, env, ctx) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, "");
 
@@ -71,6 +71,7 @@ async function route(request, env) {
       `INSERT INTO entries (date, description, payer, kind, amount, category, note, created_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
     ).bind(e.date, e.description, e.payer, e.kind, e.amount, e.category, e.note, e.created_by).first();
+    ctx.waitUntil(appendToSheet(env, row));
     return json({ ...row, receipt_files: 0, receipt_reason: null }, 201);
   }
 
@@ -270,6 +271,25 @@ function authorized(request, env) {
   let diff = 0;
   for (let i = 0; i < given.length; i++) diff |= given.charCodeAt(i) ^ expected.charCodeAt(i);
   return diff === 0;
+}
+
+// Uusi kirjaus Google Sheetsiin (Apps Script -webhook). Rivi: pvm | Kulu | maksaja | saaja | Summa.
+// Ei tee mitään, ellei SHEET_WEBHOOK_URL ole asetettu; virhe ei estä kirjauksen tallennusta.
+async function appendToSheet(env, e) {
+  if (!env.SHEET_WEBHOOK_URL) return;
+  const payee = e.kind === "deposit" ? "Tili" : e.kind === "income" ? "Tili" : "Yhteiset";
+  try {
+    await fetch(env.SHEET_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        secret: env.SHEET_SECRET || "",
+        row: [e.date, e.description, e.payer, payee, e.amount],
+      }),
+    });
+  } catch (err) {
+    console.error("Sheets-kirjaus epäonnistui", err);
+  }
 }
 
 function corsHeaders(request, env) {

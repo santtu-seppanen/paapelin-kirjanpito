@@ -101,3 +101,13 @@ samaa APIa kuin sivusto). Workerin `ALLOWED_ORIGINS` sisältää sovelluksen oso
    `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`upload`), `ANDROID_KEY_PASSWORD`.
 3. Aja workflow "Rakenna Android-sovellus" käsin → lataa `paapelin-kirjanpito-aab`.
 4. Play Console → Luo sovellus → lataa AAB sisäiseen testaukseen (Play App Signing päälle). Versiokoodi = ajon numero.
+
+## Kirjaus Google Sheetsiin
+
+Jokainen uusi kirjaus lisätään taulukon loppuun riville `pvm | Kulu | maksaja | saaja | Summa`
+(Apps Script -webhook, `scripts/sheet_webhook.gs`). Muokkauksia ja poistoja ei synkata. Ilman
+`SHEET_WEBHOOK_URL`-salaisuutta ominaisuus on pois päältä.
+
+1. Avaa taulukko → Laajennukset → Apps Script, liitä `scripts/sheet_webhook.gs` ja vaihda `SECRET` pitkäksi satunnaiseksi merkkijonoksi.
+2. Ota käyttöön → Uusi käyttöönotto → Verkkosovellus; suorita: *Minä*, käyttäjät: *Kaikki*. Kopioi osoite (`.../exec`).
+3. `cd worker && npx wrangler secret put SHEET_WEBHOOK_URL` (osoite) ja `npx wrangler secret put SHEET_SECRET` (sama merkkijono kuin skriptissä).
